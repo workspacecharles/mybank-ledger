@@ -31,6 +31,7 @@ Cada decisão abaixo tem um ADR (registro de decisão de arquitetura) com contex
 | PostgreSQL | Tem nativamente o que garante a consistência: trava de linha (`FOR UPDATE`), fila concorrente (`SKIP LOCKED`), upsert (`ON CONFLICT`), decimal exato (`numeric`), check constraints e triggers. Código aberto |
 | EF Core + Npgsql (biblioteca de acesso a banco e o driver do PostgreSQL) | Migrations versionadas e consultas tipadas. SQL explícito só onde a garantia depende dele (trava, upsert, relógio do banco) |
 | JWT Bearer / OIDC | Padrão de mercado. Em produção, o login fica com um provedor de identidade; a API só valida o token |
+| OpenAPI nativo do ASP.NET Core + Scalar e Swagger UI | O contrato é gerado pelo próprio framework a partir das rotas. As duas interfaces leem o mesmo contrato: o Scalar é a que a documentação atual do .NET sugere; o Swagger UI é a que a maioria das pessoas já conhece |
 | xUnit + Testcontainers | Testes de integração contra um PostgreSQL real e descartável: trava e transação são testadas de verdade, não simuladas |
 | Gerador de carga próprio, em C# | Roda só com o SDK do .NET e confere no banco, ao final, que nenhum lançamento confirmado foi perdido ou duplicado, algo que ferramentas genéricas de carga não fazem |
 
@@ -84,7 +85,7 @@ src/
   MyBank.Api/      Program.cs (só compõe as extensões), ErrorHandler (problem+json), AuthPolicies
     Contracts/     Requests e responses HTTP, um record por arquivo
     Endpoints/     AccountEndpoints (rotas de conta), DevTokenEndpoints (token local), HealthEndpoints
-    Extensions/    AddMyBankAuth (JWT), AddMyBankHttp (erros, OpenAPI, limites), UseMyBankPipeline (middlewares)
+    Extensions/    AddMyBankAuth (JWT), AddMyBankHttp (erros, limites), AddMyBankOpenApi (contrato e interfaces), UseMyBankPipeline (middlewares)
   MyBank.Worker/   Laço que chama o DailyBalanceProjector
 tests/
   MyBank.Tests/
@@ -197,7 +198,7 @@ sequenceDiagram
 
 ## 5. API
 
-Prefixo `/api/v1`. Erros em `application/problem+json` com um `code` (código) estável. Contrato OpenAPI (descrição padrão dos endereços da API) em `/openapi/v1.json`, somente em Development (ambiente de desenvolvimento).
+Prefixo `/api/v1`. Erros em `application/problem+json` com um `code` (código) estável. Contrato OpenAPI (descrição padrão dos endereços da API) em `/openapi/v1.json`, com duas interfaces no navegador para lê-lo e testar as rotas: Scalar em `/scalar` e Swagger UI em `/swagger`. O contrato declara a autenticação Bearer só nas rotas que a exigem. Os três ficam somente em Development (ambiente de desenvolvimento).
 
 | Operação | Contrato | Respostas |
 |---|---|---|

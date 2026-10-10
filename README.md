@@ -79,7 +79,9 @@ A connection string (texto com endereço, usuário e senha do banco) fica em `ap
 
 As rotas de negócio exigem o header (cabeçalho HTTP) `Authorization: Bearer <token>`, com um token JWT (crachá digital assinado que identifica o usuário). Em Development (ambiente de desenvolvimento), `POST /dev/token` emite tokens locais. O titular da conta é a claim (campo do token) `sub`, e abrir conta exige o papel `accounts-admin`.
 
-O jeito mais simples de testar é o arquivo [MyBank.Api.http](src/MyBank.Api/MyBank.Api.http): ele tem o fluxo completo (tokens, abertura de conta, lançamentos e consultas) para executar no VS Code (extensão REST Client) ou no Visual Studio, sem instalar mais nada.
+O jeito mais simples de testar é pelo navegador, com a API rodando: [http://localhost:5013/scalar](http://localhost:5013/scalar) (Scalar) ou [http://localhost:5013/swagger](http://localhost:5013/swagger) (Swagger UI). As duas interfaces listam as rotas e executam requisições. Gere um token em `POST /dev/token` e informe-o no campo de autenticação ("Authentication" no Scalar, "Authorize" no Swagger UI) para usar as rotas de conta, marcadas com cadeado.
+
+O arquivo [MyBank.Api.http](src/MyBank.Api/MyBank.Api.http) tem o fluxo completo (tokens, abertura de conta, lançamentos e consultas) em ordem, para executar no VS Code (extensão REST Client) ou no Visual Studio, sem instalar mais nada.
 
 Alternativa com `curl` (cliente HTTP de linha de comando), em um terminal bash. No PowerShell do Windows, `curl` é outro comando e o exemplo não funciona como está:
 
@@ -114,6 +116,7 @@ curl -s "$API/api/v1/accounts/$ACC/daily-balances?from=2026-10-01&to=2026-10-31"
 | `POST /dev/token` | Token local (somente Development) |
 | `GET /health/live`, `/health/ready`, `/health/projection` | Processo no ar, banco disponível e atraso da consolidação |
 | `GET /openapi/v1.json` | Contrato OpenAPI (descrição padrão dos endereços da API; somente Development) |
+| `GET /scalar` e `GET /swagger` | Interfaces no navegador para ler o contrato e testar as rotas: Scalar e Swagger UI (somente Development) |
 
 Os erros seguem `application/problem+json` (formato padrão de resposta de erro) com um `code` estável (ex.: `insufficient_funds` = saldo insuficiente, `idempotency_key_reused` = número de pedido reusado com outro conteúdo, `invalid_scale` = mais de 2 casas decimais). O contrato completo está na [seção 5 de Architecture.md](docs/Architecture.md#5-api).
 

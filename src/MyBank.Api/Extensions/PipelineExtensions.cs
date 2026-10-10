@@ -13,7 +13,7 @@ internal static class PipelineExtensions
             // Localmente o schema é criado/atualizado na subida. Em produção, migrations rodam no pipeline de deploy.
             using var scope = app.Services.CreateScope();
             scope.ServiceProvider.GetRequiredService<MyBankDbContext>().Database.Migrate();
-            app.MapOpenApi();
+            app.MapMyBankApiDocs();
         }
         else
         {

@@ -11,7 +11,7 @@ internal static class HttpExtensions
     {
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ErrorHandler>();
-        builder.Services.AddOpenApi();
+        builder.Services.AddMyBankOpenApi();
         builder.Services.AddHealthChecks().AddDbContextCheck<MyBankDbContext>();
 
         // Corpos pequenos e sem campos desconhecidos (ex.: o cliente não informa recordedAt nem balanceAfter).
