@@ -35,7 +35,9 @@ Para reproduzir (com API e worker rodando):
 dotnet run --project tools/MyBank.LoadTests -c Release -- --scenario mixed --duration 60 --output docs/load-tests/mixed.md
 ```
 
-Opções: `--scenario`, `--rate` (req/s), `--duration` (segundos), `--accounts` (contas), `--duplicates` (fração de repetições), `--db <connection string | none>` (banco para conferir o razão), `--base-url` (endereço da API). O programa termina com código `0` quando todas as verificações passam.
+Opções: `--scenario`, `--rate` (req/s), `--duration` (segundos), `--accounts` (contas), `--duplicates` (fração de repetições), `--worker running|stopped` (com `stopped`, a ferramenta confere que a consolidação ficou parada durante a carga e avisa quando iniciar o worker), `--db <connection string | none>` (banco para conferir o razão), `--base-url` (endereço da API). O programa termina com código `0` quando todas as verificações passam.
+
+**Cada relatório traz o próprio passo a passo** (seção "Como reproduzir", gerada pela ferramenta): o comando exato daquela execução e a versão do código (commit). Os relatórios são o registro de uma execução, não uma prova por si só: a prova é repetir o passo a passo e obter as mesmas verificações aprovadas.
 
 ## 3. Ambiente
 
@@ -59,7 +61,7 @@ No `mixed`, o p95 por operação foi: saldo 5,5 ms, consolidado 12,6 ms, lançam
 - **50 req/s com 0% de erro em todos os cenários.** O limite de 5% não chegou a ser tocado.
 - **Zero perdido e zero duplicado:** o número de lançamentos no banco é exatamente o número confirmado ao cliente, e todas as repetições devolveram o lançamento original.
 - **Conta concorrida:** com todos os lançamentos na fila da mesma trava, o p95 foi de 17 ms. Cada transação segura a trava por poucos milissegundos.
-- **Worker parado (critério de aceite 8):** os lançamentos continuaram sendo aceitos com a mesma velocidade e 0% de erro. Ao fim da janela, `/health/projection` estava `Degraded` (degradado: 1.416 eventos pendentes, o mais antigo com 60 s) e `/health/ready` continuava `Healthy` (saudável). Religado, o worker processou o backlog (fila acumulada) em 3 lotes, sem duplicar nada. Os 51 s de convergência registrados no relatório incluem o tempo para religar o worker manualmente com `dotnet run` (compilação e inicialização), não só o processamento.
+- **Worker parado (critério de aceite 8):** (execução anterior à opção `--worker stopped`, com o worker religado à mão) os lançamentos continuaram sendo aceitos com a mesma velocidade e 0% de erro. Ao fim da janela, `/health/projection` estava `Degraded` (degradado: 1.416 eventos pendentes, o mais antigo com 60 s) e `/health/ready` continuava `Healthy` (saudável). Religado, o worker processou o backlog (fila acumulada) em 3 lotes, sem duplicar nada. Os 51 s de convergência registrados no relatório incluem o tempo para religar o worker manualmente com `dotnet run` (compilação e inicialização), não só o processamento.
 - **Primeiras requisições:** os máximos de 270–420 ms no `mixed` são do aquecimento logo depois de subir a API: JIT (compilação do código na primeira execução), criação das conexões com o banco e caches frios. Os p99 ficaram abaixo de 90 ms.
 - **Sem cache** (cópia rápida em memória): consultas de saldo e de consolidado ficam abaixo de 15 ms no p95. Não há motivo para cache, e o saldo que autoriza débito não pode ser cacheado.
 

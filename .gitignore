@@ -28,5 +28,5 @@ Thumbs.db
 .DS_Store
 
 # Base de conhecimento usada durante o desenvolvimento (demanda original, guia,
-# plano e anotações). Não faz parte da entrega; a documentação entregue fica na raiz de docs/.
-docs/base-de-conhecimento/
+# plano, dúvidas e estudos). Não faz parte da entrega; a documentação entregue fica em docs/.
+temp/

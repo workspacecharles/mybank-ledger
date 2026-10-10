@@ -16,8 +16,9 @@ flowchart LR
 ```
 
 ```text
-src/MyBank.Core         Entidades, banco (EF Core + migrations), regras (LedgerRules), casos de uso (LedgerService) e consolidação (DailyBalanceProjector)
-src/MyBank.Api          Endpoints, autenticação JWT, erros em problem+json, health checks
+src/MyBank.Domain       Entidades (Entities/), enums (Enums/) e regras de negócio puras (LedgerRules), sem dependência de banco ou framework
+src/MyBank.Core         Casos de uso (LedgerService), consolidação (DailyBalanceProjector) e banco (EF Core + migrations)
+src/MyBank.Api          Endpoints (Endpoints/), contratos HTTP (Contracts/), configuração em extensões (Extensions/), erros em problem+json
 src/MyBank.Worker       Processa a outbox em um laço contínuo
 tests/MyBank.Tests      Unit/: regras de negócio isoladas. Integration/: um teste por critério de aceite, com API e PostgreSQL reais
 tools/MyBank.LoadTests  Teste de carga a 50 req/s com verificação de perda e duplicação
@@ -25,10 +26,18 @@ tools/MyBank.LoadTests  Teste de carga a 50 req/s com verificação de perda e d
 
 Termos: **EF Core** (biblioteca que traduz classes C# em tabelas e consultas); **migrations** (scripts que criam e atualizam as tabelas); **endpoints** (endereços da API); **JWT** (crachá digital assinado que identifica o usuário); **problem+json** (formato padrão de resposta de erro); **health checks** (endereços que dizem se o sistema está saudável); **req/s** (requisições por segundo).
 
+### Por que não há camada de repositório
+
+O caminho de uma requisição é `Endpoint → LedgerService → DbContext → PostgreSQL`, com as regras de negócio em `MyBank.Domain`. A separação entre domínio e infraestrutura existe e é garantida pelo compilador: `MyBank.Domain` não referencia nenhum pacote nem projeto, então uma regra de negócio não consegue depender de banco ou de HTTP.
+
+Não há interfaces de repositório nem de unit of work (unidade de trabalho, que agrupa gravações em uma transação) porque o `DbContext` do EF Core já implementa esses dois padrões. Uma interface por cima só repassaria chamadas e esconderia o que garante a consistência: a trava `FOR UPDATE` e o relógio do banco, específicos do PostgreSQL. Uma primeira versão com camadas completas foi escrita e descartada por isso. O raciocínio e quando reavaliar estão na [seção 8 de Architecture.md](docs/Architecture.md#8-alternativas-consideradas).
+
 | Documento | Conteúdo |
 |---|---|
-| [docs/Arquitetura.md](docs/Arquitetura.md) | Decisões e alternativas, fluxos, garantias, segurança, operação e falhas, critérios de aceite e evidências, evoluções |
-| [docs/Teste-de-Carga.md](docs/Teste-de-Carga.md) | Interpretação dos 5%, método, resultados e limitações |
+| [docs/C4.md](docs/C4.md) | Diagramas da arquitetura no modelo C4: contexto, contêineres e componentes |
+| [docs/Architecture.md](docs/Architecture.md) | Decisões, tecnologias e padrões, fluxos, garantias, segurança, operação e falhas, alternativas e trade-offs, requisitos não funcionais, critérios de aceite e evidências, evoluções |
+| [docs/ADR.md](docs/ADR.md) | Registros de decisão de arquitetura (ADRs): índice, com uma decisão por arquivo em `docs/adr/` (contexto, alternativas e consequências) |
+| [docs/Load-Tests.md](docs/Load-Tests.md) | Interpretação dos 5%, método, resultados e limitações |
 
 ## Pré-requisitos
 
@@ -92,7 +101,7 @@ curl -s "$API/api/v1/accounts/$ACC/daily-balances?from=2026-10-01&to=2026-10-31"
 | `GET /health/live`, `/health/ready`, `/health/projection` | Processo no ar, banco disponível e atraso da consolidação |
 | `GET /openapi/v1.json` | Contrato OpenAPI (descrição padrão dos endereços da API; somente Development) |
 
-Os erros seguem `application/problem+json` com um `code` estável (ex.: `insufficient_funds` = saldo insuficiente, `idempotency_key_reused` = número de pedido reusado com outro conteúdo, `invalid_scale` = mais de 2 casas decimais). O contrato completo está na [seção 5 de Arquitetura.md](docs/Arquitetura.md#5-api).
+Os erros seguem `application/problem+json` com um `code` estável (ex.: `insufficient_funds` = saldo insuficiente, `idempotency_key_reused` = número de pedido reusado com outro conteúdo, `invalid_scale` = mais de 2 casas decimais). O contrato completo está na [seção 5 de Architecture.md](docs/Architecture.md#5-api).
 
 ## Testes
 
@@ -105,7 +114,7 @@ O build trata warnings (avisos do compilador) como erro. O CI (integração cont
 
 O projeto de testes tem uma subpasta por tipo de teste:
 
-- **`Unit/`** (testes unitários): testam as regras de negócio de `LedgerRules` isoladas, sem banco e sem Docker. Rodam em menos de um segundo.
+- **`Unit/`** (testes unitários): testam as regras de negócio de `LedgerRules` (em `MyBank.Domain`) isoladas, sem banco e sem Docker. Rodam em menos de um segundo.
 - **`Integration/`** (testes de integração): sobem a API inteira sobre um PostgreSQL descartável via Testcontainers (biblioteca que cria o banco no Docker só durante o teste), então o **Docker precisa estar em execução**. Provam o que só o banco garante: travas, transações, índices únicos e imutabilidade do razão.
 
 Para rodar um tipo só, filtre pelo namespace (o nome da subpasta):
@@ -134,4 +143,4 @@ dotnet run --project src/MyBank.Worker -c Release
 dotnet run --project tools/MyBank.LoadTests -c Release -- --scenario mixed --rate 50 --duration 60
 ```
 
-Cenários: `mixed` (misto), `hot-account` (todos os lançamentos na mesma conta) e `daily-balance` (só consultas ao consolidado). No final, a ferramenta confere saldos, razão (zero perdido, zero duplicado) e se a consolidação ficou em dia. Resultados em [docs/Teste-de-Carga.md](docs/Teste-de-Carga.md).
+Cenários: `mixed` (misto), `hot-account` (todos os lançamentos na mesma conta) e `daily-balance` (só consultas ao consolidado). No final, a ferramenta confere saldos, razão (zero perdido, zero duplicado) e se a consolidação ficou em dia. Resultados em [docs/Load-Tests.md](docs/Load-Tests.md).
