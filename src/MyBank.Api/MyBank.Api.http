@@ -1,0 +1,73 @@
+### Fluxo completo da API em ambiente local (Development).
+### Execute as requisições em ordem; os valores são capturados das respostas anteriores.
+
+@api = http://localhost:5013
+
+### 1. Token de administrador (abre contas)
+# @name admin
+POST {{api}}/dev/token
+Content-Type: application/json
+
+{ "subject": "admin", "roles": ["accounts-admin"] }
+
+### 2. Token da titular
+# @name alice
+POST {{api}}/dev/token
+Content-Type: application/json
+
+{ "subject": "alice" }
+
+### 3. Abrir conta com saldo inicial
+# @name account
+POST {{api}}/api/v1/accounts
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "ownerId": "alice", "initialBalance": 100.00 }
+
+### 4. Crédito (repetir esta requisição devolve o mesmo lançamento com Idempotent-Replayed: true)
+# @name credit
+POST {{api}}/api/v1/accounts/{{account.response.body.$.id}}/entries
+Authorization: Bearer {{alice.response.body.$.accessToken}}
+Idempotency-Key: pedido-001
+Content-Type: application/json
+
+{ "type": "credit", "amount": 50.25, "currency": "BRL", "description": "depósito" }
+
+### 5. Mesma chave com outro conteúdo: 409
+POST {{api}}/api/v1/accounts/{{account.response.body.$.id}}/entries
+Authorization: Bearer {{alice.response.body.$.accessToken}}
+Idempotency-Key: pedido-001
+Content-Type: application/json
+
+{ "type": "credit", "amount": 99.00, "currency": "BRL" }
+
+### 6. Débito acima do saldo: 422 insufficient_funds
+POST {{api}}/api/v1/accounts/{{account.response.body.$.id}}/entries
+Authorization: Bearer {{alice.response.body.$.accessToken}}
+Idempotency-Key: pedido-002
+Content-Type: application/json
+
+{ "type": "debit", "amount": 1000.00, "currency": "BRL" }
+
+### 7. Consultar o lançamento
+GET {{api}}/api/v1/accounts/{{account.response.body.$.id}}/entries/{{credit.response.body.$.id}}
+Authorization: Bearer {{alice.response.body.$.accessToken}}
+
+### 8. Saldo atual
+GET {{api}}/api/v1/accounts/{{account.response.body.$.id}}/balance
+Authorization: Bearer {{alice.response.body.$.accessToken}}
+
+### 9. Saldo no instante do crédito (fuso explícito obrigatório)
+GET {{api}}/api/v1/accounts/{{account.response.body.$.id}}/balance?at={{credit.response.body.$.recordedAt}}
+Authorization: Bearer {{alice.response.body.$.accessToken}}
+
+### 10. Consolidação diária (requer o worker rodando para estar em dia)
+GET {{api}}/api/v1/accounts/{{account.response.body.$.id}}/daily-balances?from=2026-01-01&to=2026-12-31
+Authorization: Bearer {{alice.response.body.$.accessToken}}
+
+### 11. Health checks
+GET {{api}}/health/ready
+
+###
+GET {{api}}/health/projection

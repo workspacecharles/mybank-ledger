@@ -1,0 +1,22 @@
+# Dependências locais de desenvolvimento. Credenciais apenas para uso local;
+# fora do ambiente local use configuração segura (variáveis/secret store).
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: mybank-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test123
+      POSTGRES_DB: mybank
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mybank"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

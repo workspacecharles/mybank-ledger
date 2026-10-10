@@ -1,0 +1,30 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:suggestion
+csharp_style_var_for_built_in_types = false:suggestion
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Convenções de nomenclatura
+dotnet_naming_rule.interfaces_should_start_with_i.severity = warning
+dotnet_naming_rule.interfaces_should_start_with_i.symbols = interface
+dotnet_naming_rule.interfaces_should_start_with_i.style = starts_with_i
+dotnet_naming_symbols.interface.applicable_kinds = interface
+dotnet_naming_style.starts_with_i.required_prefix = I
+dotnet_naming_style.starts_with_i.capitalization = pascal_case
+
+# Migrations são geradas pelo EF Core; analisadores não se aplicam.
+[**/Migrations/*.cs]
+generated_code = true

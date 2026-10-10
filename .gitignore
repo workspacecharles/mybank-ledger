@@ -1,0 +1,29 @@
+# Build
+bin/
+obj/
+out/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+.vsidx
+
+# Rider
+.idea/
+
+# Test results
+TestResults/
+*.trx
+
+# Secrets
+secrets.json
+appsettings.*.Local.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Base de conhecimento usada durante o desenvolvimento (demanda original, guia,
+# plano e anotações). Não faz parte da entrega; a documentação entregue fica na raiz de docs/.
+docs/base-de-conhecimento/
