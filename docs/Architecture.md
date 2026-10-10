@@ -19,6 +19,7 @@ Cada decisão abaixo tem um ADR (registro de decisão de arquitetura) com contex
 | Saldo histórico | `balance_after` (saldo depois) do último lançamento até o instante pedido | Exato, uma linha lida por índice, independente da consolidação | [0007](./adr/0007-saldo-historico-pelo-razao.md) |
 | Código | 4 projetos: `Domain` (entidades e regras puras), `Core` (casos de uso + acesso ao banco), `Api`, `Worker` | Domínio isolado da infraestrutura pelo compilador. Sem interfaces de repositório: o `DbContext` já é repositório e unit of work ([seção 8](#camadas-e-repositório)) | [0008](./adr/0008-dominio-isolado-sem-repositorio.md) |
 | Segurança | JWT/OIDC; autorização pelo titular da conta (claim `sub`) | Padrão de mercado; cada cliente só acessa as próprias contas | [0009](./adr/0009-autenticacao-jwt-autorizacao-por-titular.md) |
+| Documentação da API | Contrato OpenAPI nativo + duas interfaces no navegador (Scalar e Swagger UI), só em Development | API explorável e testável sem instalar nada; um único contrato alimenta as duas | [0010](./adr/0010-documentacao-interativa-da-api.md) |
 
 **Princípio de projeto:** colocar as garantias no banco (transação, trava de linha, índices únicos, check constraints, que são regras de verificação, e trigger, um gatilho que o banco executa sozinho), não em camadas de código. São poucas e simples, e todas são verificáveis por testes contra um PostgreSQL real.
 

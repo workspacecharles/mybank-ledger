@@ -15,5 +15,6 @@ Formato usado em cada arquivo: **Status**, **Contexto**, **Decisão**, **Alterna
 | [0007](./adr/0007-saldo-historico-pelo-razao.md) | Saldo histórico lido do razão, não do consolidado | Aceito |
 | [0008](./adr/0008-dominio-isolado-sem-repositorio.md) | Domínio isolado, sem interfaces de repositório | Aceito |
 | [0009](./adr/0009-autenticacao-jwt-autorizacao-por-titular.md) | Autenticação JWT/OIDC e autorização por titular da conta | Aceito |
+| [0010](./adr/0010-documentacao-interativa-da-api.md) | Documentação interativa da API com Scalar e Swagger UI | Aceito |
 
 A visão completa (fluxos, segurança, operação, requisitos não funcionais) está em [Architecture.md](./Architecture.md).

@@ -50,40 +50,44 @@ Termos: **EF Core** (biblioteca que traduz classes C# em tabelas e consultas); *
 | Testes: regras, falhas, reprocessamento, idempotência, integração e carga | [Testes](#testes) (abaixo), [Architecture §10](docs/Architecture.md#10-critérios-de-aceite-e-evidências) (cada critério de aceite e sua evidência) |
 | Requisitos não funcionais, trade-offs e evoluções futuras | [Architecture §9](docs/Architecture.md#9-requisitos-não-funcionais), [§8](docs/Architecture.md#8-alternativas-consideradas) e [§11](docs/Architecture.md#11-evoluções-futuras) |
 
-## Pré-requisitos
+## Como usar
 
-- .NET SDK 10.x (kit de desenvolvimento do .NET)
-- Docker (roda o PostgreSQL local e o banco temporário dos testes)
-- Opcional, só para o exemplo com `curl`: um terminal bash (Git Bash ou WSL no Windows) e o `jq` (programa que lê JSON no terminal)
+Pré-requisitos: .NET SDK 10.x (kit de desenvolvimento do .NET) e Docker em execução.
 
-## Executando localmente
+### 1. Subir o sistema
 
 ```powershell
-# 1. PostgreSQL
-docker compose up -d
-
-# 2. API em http://localhost:5013 (em Development, cria ou atualiza as tabelas ao subir)
-dotnet run --project src/MyBank.Api
-
-# 3. Worker de consolidação (outro terminal)
-dotnet run --project src/MyBank.Worker
+docker compose up -d                      # PostgreSQL local
+dotnet run --project src/MyBank.Api       # API em http://localhost:5013 (cria as tabelas ao subir)
+dotnet run --project src/MyBank.Worker    # Worker da consolidação diária, em outro terminal
 ```
 
-A connection string (texto com endereço, usuário e senha do banco) fica em `appsettings.Development.json` (API e Worker). Ela usa as credenciais **apenas locais** do `docker-compose.yml` (`postgres` / `test123`, banco `mybank`). Para usar outro banco, defina a variável de ambiente `ConnectionStrings__MyBankDb`. Fora do ambiente local:
+### 2. Abrir a interface no navegador
 
-- informe a connection string por variável de ambiente ou secret store (cofre de senhas);
-- configure um provedor OIDC (sistema de login padrão de mercado) em `Auth:Authority`;
-- aplique as migrations no deploy (implantação): `dotnet ef database update --project src/MyBank.Core`.
+- Scalar: [http://localhost:5013/scalar](http://localhost:5013/scalar)
+- Swagger UI: [http://localhost:5013/swagger](http://localhost:5013/swagger)
 
-## Usando a API
+As duas mostram as mesmas rotas e executam requisições. Use a que preferir.
 
-As rotas de negócio exigem o header (cabeçalho HTTP) `Authorization: Bearer <token>`, com um token JWT (crachá digital assinado que identifica o usuário). Em Development (ambiente de desenvolvimento), `POST /dev/token` emite tokens locais. O titular da conta é a claim (campo do token) `sub`, e abrir conta exige o papel `accounts-admin`.
+### 3. Fluxo básico
 
-O jeito mais simples de testar é pelo navegador, com a API rodando: [http://localhost:5013/scalar](http://localhost:5013/scalar) (Scalar) ou [http://localhost:5013/swagger](http://localhost:5013/swagger) (Swagger UI). As duas interfaces listam as rotas e executam requisições. Gere um token em `POST /dev/token` e informe-o no campo de autenticação ("Authentication" no Scalar, "Authorize" no Swagger UI) para usar as rotas de conta, marcadas com cadeado.
+As rotas de conta (com cadeado) exigem um token JWT (crachá digital assinado que identifica o usuário). Localmente, quem emite o token é a própria API, em `POST /dev/token`.
 
-O arquivo [MyBank.Api.http](src/MyBank.Api/MyBank.Api.http) tem o fluxo completo (tokens, abertura de conta, lançamentos e consultas) em ordem, para executar no VS Code (extensão REST Client) ou no Visual Studio, sem instalar mais nada.
+1. **Token de administrador:** `POST /dev/token` com `{"subject":"admin","roles":["accounts-admin"]}`. Copie o `accessToken` e informe-o em **Authentication** (Scalar) ou **Authorize** (Swagger UI).
+2. **Abrir conta:** `POST /api/v1/accounts` com `{"ownerId":"alice","initialBalance":100.00}`. Anote o `id` da conta.
+3. **Token da titular:** `POST /dev/token` com `{"subject":"alice"}` e troque o token na interface. Só o titular (o `subject` do token) movimenta e consulta a conta.
+4. **Lançar:** `POST /api/v1/accounts/{id}/entries` com o header `Idempotency-Key: pedido-001` e `{"type":"credit","amount":50.25,"currency":"BRL"}`. Para débito, use `"type":"debit"`. Repetir com a mesma chave devolve o mesmo lançamento, sem duplicar.
+5. **Consultar:**
+   - saldo atual: `GET /api/v1/accounts/{id}/balance`;
+   - saldo em um instante: o mesmo endereço com `?at=2026-10-09T12:00:00Z` (data e hora com fuso);
+   - consolidação diária: `GET /api/v1/accounts/{id}/daily-balances?from=2026-10-01&to=2026-10-31`. Com o worker rodando, fica em dia em instantes; `projection.upToDate` diz se está.
 
-Alternativa com `curl` (cliente HTTP de linha de comando), em um terminal bash. No PowerShell do Windows, `curl` é outro comando e o exemplo não funciona como está:
+**Outras formas de testar:** o arquivo [MyBank.Api.http](src/MyBank.Api/MyBank.Api.http) tem esse fluxo pronto para o VS Code (extensão REST Client) ou o Visual Studio. Há também um exemplo com `curl` abaixo.
+
+<details>
+<summary>Exemplo com <code>curl</code> (terminal bash e <code>jq</code>)</summary>
+
+Requer um terminal bash (Git Bash ou WSL no Windows; no PowerShell, `curl` é outro comando) e o `jq` (programa que lê JSON no terminal).
 
 ```bash
 API=http://localhost:5013
@@ -92,19 +96,30 @@ ADMIN=$(curl -s -X POST $API/dev/token -H 'Content-Type: application/json' -d '{
 ALICE=$(curl -s -X POST $API/dev/token -H 'Content-Type: application/json' -d '{"subject":"alice"}' | jq -r .accessToken)
 
 # Abrir conta da alice com saldo inicial
-ACC=$(curl -s -X POST $API/api/v1/accounts -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
-  -d '{"ownerId":"alice","initialBalance":100.00}' | jq -r .id)
+ACC=$(curl -s -X POST $API/api/v1/accounts -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json'   -d '{"ownerId":"alice","initialBalance":100.00}' | jq -r .id)
 
 # Crédito. Repetir o comando devolve o mesmo lançamento com "Idempotent-Replayed: true".
-curl -i -X POST $API/api/v1/accounts/$ACC/entries -H "Authorization: Bearer $ALICE" \
-  -H 'Idempotency-Key: pedido-001' -H 'Content-Type: application/json' \
-  -d '{"type":"credit","amount":50.25,"currency":"BRL","description":"pagamento recebido"}'
+curl -i -X POST $API/api/v1/accounts/$ACC/entries -H "Authorization: Bearer $ALICE"   -H 'Idempotency-Key: pedido-001' -H 'Content-Type: application/json'   -d '{"type":"credit","amount":50.25,"currency":"BRL","description":"pagamento recebido"}'
 
 # Saldo atual, saldo em um instante e consolidação diária
 curl -s $API/api/v1/accounts/$ACC/balance -H "Authorization: Bearer $ALICE"
 curl -s "$API/api/v1/accounts/$ACC/balance?at=2026-10-09T12:00:00Z" -H "Authorization: Bearer $ALICE"
 curl -s "$API/api/v1/accounts/$ACC/daily-balances?from=2026-10-01&to=2026-10-31" -H "Authorization: Bearer $ALICE"
 ```
+
+</details>
+
+### Configuração
+
+A connection string (endereço, usuário e senha do banco) fica em `appsettings.Development.json` da API e do Worker, com as credenciais **apenas locais** do `docker-compose.yml` (`postgres` / `test123`, banco `mybank`). Para usar outro banco, defina a variável de ambiente `ConnectionStrings__MyBankDb`. Fora do ambiente local:
+
+- informe a connection string por variável de ambiente ou secret store (cofre de senhas);
+- configure um provedor OIDC (sistema de login padrão de mercado) em `Auth:Authority`;
+- aplique as migrations no deploy (implantação): `dotnet ef database update --project src/MyBank.Core`.
+
+As interfaces (`/scalar`, `/swagger`), o contrato OpenAPI e o `POST /dev/token` existem só em Development (ambiente de desenvolvimento).
+
+### Endpoints
 
 | Endpoint | Descrição |
 |---|---|
