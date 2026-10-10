@@ -22,3 +22,15 @@
 | Sem respostas inesperadas | OK | 0 anomalias |
 
 Razão: 100 lançamentos confirmados ao cliente; 100 no banco; 0 confirmados sem resposta recebida pelo cliente.
+
+#### Como reproduzir
+
+> Seção incluída depois desta execução, que foi feita antes de a ferramenta gerar o passo a passo e registrar o commit. Os resultados acima não foram alterados. A execução usou o PostgreSQL 18 de um container local na porta 5432; o `docker compose` do projeto usa o PostgreSQL 17.
+
+As latências variam com a máquina; as verificações da tabela acima devem passar em qualquer ambiente. Na raiz do repositório, com .NET SDK 10 e Docker em execução:
+
+1. Suba o PostgreSQL: `docker compose up -d`.
+2. Terminal 1, API: `dotnet run --project src/MyBank.Api -c Release`.
+3. Terminal 2, Worker: `dotnet run --project src/MyBank.Worker -c Release`.
+4. Terminal 3, carga: `dotnet run --project tools/MyBank.LoadTests -c Release -- --scenario daily-balance --rate 50 --duration 60 --accounts 20 --duplicates 0.05 --output docs/load-tests/daily-balance.md`.
+5. A ferramenta termina com código 0 se todas as verificações passarem (1 se alguma falhar) e grava um relatório neste mesmo formato no arquivo do `--output`.

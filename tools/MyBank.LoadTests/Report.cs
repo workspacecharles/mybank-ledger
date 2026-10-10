@@ -32,15 +32,24 @@ internal sealed record Report(string Markdown, bool Passed)
             ("Zero lançamento confirmado perdido", verification.LedgerChecked && verification.Lost == 0, verification.LedgerChecked ? $"{verification.Lost} perdidos" : "não verificado (--db none)"),
             ("Zero lançamento duplicado", verification.LedgerChecked && verification.DuplicatedAcceptances == 0 && verification.ConfirmedWithoutResponse == 0,
                 $"razão = lançamentos aceitos ({verification.LedgerEntries}/{verification.AcceptedEntries}); {replaysVerified} repetições devolveram o lançamento original"),
-            ("Consolidação diária converge para o razão", verification.ProjectionConvergence is not null, verification.ProjectionConvergence is { } t ? string.Create(CultureInfo.InvariantCulture, $"em {t.TotalSeconds:F1} s após o fim da carga") : "não convergiu em 120 s"),
+            ("Consolidação diária converge para o razão", verification.ProjectionConvergence is not null, verification.ProjectionConvergence is { } t ? string.Create(CultureInfo.InvariantCulture, $"em {t.TotalSeconds:F1} s após o fim da carga") : $"não convergiu em {options.ProjectionTimeout.TotalSeconds:F0} s"),
             ("Sem respostas inesperadas", anomalies.Count == 0, $"{anomalies.Count} anomalias"),
         };
+
+        if (options.WorkerStopped)
+        {
+            var pending = verification.PendingWithWorkerStopped ?? 0;
+            checks.Insert(0, ("Worker parado durante a carga (lançamentos acumulados sem consolidar)", pending > 0, $"{pending} pendentes ao fim da carga"));
+        }
+
         var passed = checks.All(c => c.Ok);
+        var version = CodeVersion.Detect();
 
         var md = new StringBuilder();
-        Line(md, $"### Cenário `{ScenarioName(options.Scenario)}` — {(passed ? "APROVADO" : "REPROVADO")}");
+        Line(md, $"### Cenário `{options.ScenarioName}`{(options.WorkerStopped ? " com worker parado" : string.Empty)} — {(passed ? "APROVADO" : "REPROVADO")}");
         md.AppendLine();
         Line(md, $"- Execução: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC; {RuntimeInformation.OSDescription}; {Environment.ProcessorCount} CPUs lógicas; {RuntimeInformation.FrameworkDescription}");
+        Line(md, $"- Código: {version.Describe()}");
         Line(md, $"- Carga: {options.Rate} req/s alvo por {options.Duration.TotalSeconds:F0} s; {dispatched} requisições despachadas em {dispatchElapsed.TotalSeconds:F1} s (**{dispatched / dispatchElapsed.TotalSeconds:F1} req/s** alcançados)");
         Line(md, $"- Contas: {(options.Scenario == Scenario.HotAccount ? 1 : options.Accounts)}; repetições idempotentes: {options.DuplicateRatio * 100:F0}% dos lançamentos; retries após timeout: {timeoutRetries}");
         Line(md, $"- Respostas: {samples.Count}; erros da aplicação (5xx, timeout, falha de transporte, 4xx inesperado): {errors} ({Percent(errorRate)}); rejeições de negócio (422, saldo insuficiente): {rejections}");
@@ -72,7 +81,45 @@ internal sealed record Report(string Markdown, bool Passed)
             Line(md, $"- {anomaly}");
         }
 
+        md.AppendLine();
+        md.Append(HowToReproduce(options, version));
         return new Report(md.ToString(), passed);
+    }
+
+    /// <summary>Passo a passo para repetir exatamente esta execução, gravado no próprio relatório.</summary>
+    public static string HowToReproduce(LoadTestOptions options, CodeVersion version)
+    {
+        var md = new StringBuilder();
+        md.AppendLine("#### Como reproduzir");
+        md.AppendLine();
+        md.AppendLine("As latências variam com a máquina; as verificações da tabela acima devem passar em qualquer ambiente. Na raiz do repositório, com .NET SDK 10 e Docker em execução:");
+        md.AppendLine();
+
+        var step = 1;
+        if (version.Commit is { } commit)
+        {
+            var note = version.HasLocalChanges ? " (esta execução tinha alterações locais não commitadas; o resultado pode diferir)" : string.Empty;
+            Line(md, $"{step++}. Use a mesma versão do código: `git checkout {commit}`{note}.");
+        }
+
+        Line(md, $"{step++}. Suba o PostgreSQL: `docker compose up -d`.");
+        Line(md, $"{step++}. Terminal 1, API: `dotnet run --project src/MyBank.Api -c Release`.");
+        if (options.WorkerStopped)
+        {
+            Line(md, $"{step++}. Terminal 2, Worker: **não inicie ainda**. Este cenário mede a API com a consolidação parada.");
+        }
+        else
+        {
+            Line(md, $"{step++}. Terminal 2, Worker: `dotnet run --project src/MyBank.Worker -c Release`.");
+        }
+        Line(md, $"{step++}. Terminal 3, carga: `{options.ToCommandLine()}`.");
+        if (options.WorkerStopped)
+        {
+            Line(md, $"{step++}. Quando a ferramenta mostrar \"Inicie o worker agora\", rode no terminal 2 `dotnet run --project src/MyBank.Worker -c Release`. A ferramenta espera até {options.ProjectionTimeout.TotalMinutes:F0} min a consolidação alcançar o razão.");
+        }
+
+        Line(md, $"{step}. A ferramenta termina com código 0 se todas as verificações passarem (1 se alguma falhar) e grava um relatório neste mesmo formato{(options.OutputPath is null ? " quando recebe `--output <arquivo.md>`" : " no arquivo do `--output`")}.");
+        return md.ToString();
     }
 
     private static bool IsApplicationError(Outcome outcome) =>
@@ -89,13 +136,6 @@ internal sealed record Report(string Markdown, bool Passed)
         var index = (int)Math.Ceiling(percentile * sorted.Count) - 1;
         return sorted[Math.Clamp(index, 0, sorted.Count - 1)];
     }
-
-    private static string ScenarioName(Scenario scenario) => scenario switch
-    {
-        Scenario.HotAccount => "hot-account",
-        Scenario.DailyBalance => "daily-balance",
-        _ => "mixed",
-    };
 
     private static string Ms(double value) => string.Create(CultureInfo.InvariantCulture, $"{value:F1} ms");
 

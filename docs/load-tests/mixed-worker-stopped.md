@@ -24,3 +24,18 @@
 | Sem respostas inesperadas | OK | 0 anomalias |
 
 Razão: 1416 lançamentos confirmados ao cliente; 1416 no banco; 0 confirmados sem resposta recebida pelo cliente.
+
+#### Como reproduzir
+
+> Seção incluída depois desta execução, que foi feita antes de a ferramenta gerar o passo a passo e registrar o commit. Os resultados acima não foram alterados. A execução usou o PostgreSQL 18 de um container local na porta 5432; o `docker compose` do projeto usa o PostgreSQL 17.
+>
+> Esta execução também é anterior à opção `--worker stopped`: o worker ficou desligado durante a carga e foi religado à mão. O comando abaixo usa a opção, que confere sozinha que a consolidação ficou parada e avisa quando religar o worker.
+
+As latências variam com a máquina; as verificações da tabela acima devem passar em qualquer ambiente. Na raiz do repositório, com .NET SDK 10 e Docker em execução:
+
+1. Suba o PostgreSQL: `docker compose up -d`.
+2. Terminal 1, API: `dotnet run --project src/MyBank.Api -c Release`.
+3. Terminal 2, Worker: **não inicie ainda**. Este cenário mede a API com a consolidação parada.
+4. Terminal 3, carga: `dotnet run --project tools/MyBank.LoadTests -c Release -- --scenario mixed --rate 50 --duration 60 --accounts 20 --duplicates 0.05 --worker stopped --output docs/load-tests/mixed-worker-stopped.md`.
+5. Quando a ferramenta mostrar "Inicie o worker agora", rode no terminal 2 `dotnet run --project src/MyBank.Worker -c Release`. A ferramenta espera até 5 min a consolidação alcançar o razão.
+6. A ferramenta termina com código 0 se todas as verificações passarem (1 se alguma falhar) e grava um relatório neste mesmo formato no arquivo do `--output`.

@@ -1,29 +1,12 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
-using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Npgsql;
 
 namespace MyBank.LoadTests;
-
-internal enum Outcome
-{
-    Success,
-    BusinessRejection,
-    UnexpectedClientError,
-    ServerError,
-    Timeout,
-    TransportError,
-}
-
-internal sealed record Sample(string Operation, double LatencyMs, Outcome Outcome);
-
-internal sealed record AcceptedEntry(Guid AccountId, string Key, Guid EntryId, decimal SignedAmount, object Body);
-
-internal sealed record AccountState(Guid Id, decimal InitialBalance);
 
 /// <summary>
 /// Gerador de carga em modelo aberto: dispara requisições em taxa constante,
@@ -62,8 +45,17 @@ internal sealed class LoadTestRunner(LoadTestOptions options) : IDisposable
         Console.WriteLine($"Carga: {options.Rate} req/s por {options.Duration.TotalSeconds:F0}s ({options.Rate * (int)options.Duration.TotalSeconds} requisições)...");
         var (elapsed, dispatched) = await RunScheduleAsync();
 
+        int? pendingWithWorkerStopped = null;
+        if (options.WorkerStopped)
+        {
+            pendingWithWorkerStopped = await CountPendingAsync();
+            Console.WriteLine($"Carga concluída com {pendingWithWorkerStopped} lançamentos pendentes de consolidação.");
+            Console.WriteLine($"Inicie o worker agora (dotnet run --project src/MyBank.Worker -c Release). Espera máxima: {options.ProjectionTimeout.TotalMinutes:F0} min.");
+        }
+
         Console.WriteLine("Verificando consistência...");
         var verification = await VerifyAsync();
+        verification.PendingWithWorkerStopped = pendingWithWorkerStopped;
 
         var report = Report.Build(options, _samples.ToList(), elapsed, dispatched, verification, _replaysVerified, _timeoutRetries, [.. _anomalies]);
         Console.WriteLine();
@@ -325,8 +317,21 @@ internal sealed class LoadTestRunner(LoadTestOptions options) : IDisposable
         }
 
         // 3. Consolidação diária converge para o saldo do razão.
-        verification.ProjectionConvergence = await WaitForProjectionAsync(TimeSpan.FromSeconds(120));
+        verification.ProjectionConvergence = await WaitForProjectionAsync(options.ProjectionTimeout);
         return verification;
+    }
+
+    /// <summary>Lançamentos das contas do teste que o worker ainda não consolidou.</summary>
+    private async Task<int> CountPendingAsync()
+    {
+        var pending = 0;
+        foreach (var account in _accounts)
+        {
+            using var daily = JsonDocument.Parse(await _http.GetStringAsync(DailyBalanceUri(account.Id)));
+            pending += daily.RootElement.GetProperty("projection").GetProperty("pendingEntries").GetInt32();
+        }
+
+        return pending;
     }
 
     private async Task<TimeSpan?> WaitForProjectionAsync(TimeSpan timeout)
@@ -366,24 +371,4 @@ internal sealed class LoadTestRunner(LoadTestOptions options) : IDisposable
 
         return null;
     }
-}
-
-internal sealed class Verification
-{
-    public int AcceptedEntries { get; init; }
-
-    public List<string> BalanceMismatches { get; } = [];
-
-    public bool LedgerChecked { get; set; }
-
-    public int LedgerEntries { get; set; }
-
-    public int Lost { get; set; }
-
-    public int DuplicatedAcceptances { get; set; }
-
-    /// <summary>Lançamentos confirmados cuja resposta o cliente não recebeu (timeout sem retry bem-sucedido).</summary>
-    public int ConfirmedWithoutResponse { get; set; }
-
-    public TimeSpan? ProjectionConvergence { get; set; }
 }
