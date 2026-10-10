@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using MyBank.Core.Persistence;
 using MyBank.Domain;
 using MyBank.Domain.Entities;
 
-namespace MyBank.Core;
+namespace MyBank.Core.Ledger;
 
 /// <summary>
 /// Consome a outbox e atualiza a consolidação diária. Cada lote é uma transação:

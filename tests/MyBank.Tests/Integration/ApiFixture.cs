@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MyBank.Api.Contracts;
-using MyBank.Core;
+using MyBank.Core.Ledger;
+using MyBank.Core.Persistence;
 using Testcontainers.PostgreSql;
 
 namespace MyBank.Tests.Integration;

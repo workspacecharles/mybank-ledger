@@ -3,12 +3,12 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using MyBank.Core;
+using MyBank.Core.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace MyBank.Core.Migrations
+namespace MyBank.Core.Persistence.Migrations
 {
     [DbContext(typeof(MyBankDbContext))]
     partial class MyBankDbContextModelSnapshot : ModelSnapshot

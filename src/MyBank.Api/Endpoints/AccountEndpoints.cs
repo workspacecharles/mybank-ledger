@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using MyBank.Api.Contracts;
 using MyBank.Api.Extensions;
-using MyBank.Core;
+using MyBank.Core.Ledger;
 using MyBank.Domain;
 
 namespace MyBank.Api.Endpoints;

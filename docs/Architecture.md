@@ -78,8 +78,9 @@ src/
   MyBank.Domain/   LedgerRules (regras puras), LedgerException. Sem pacotes nem referências
     Entities/      Account, LedgerEntry, OutboxMessage, DailyBalance
     Enums/         EntryType, ErrorType
-  MyBank.Core/     LedgerService (casos de uso), DailyBalanceProjector (consolidação), DbContext + migrations,
-                   AddMyBankCore (registro do banco e dos serviços, usado pela API e pelo Worker)
+  MyBank.Core/     AddMyBankCore (registro do banco e dos serviços, usado pela API e pelo Worker)
+    Ledger/        LedgerService (casos de uso), DailyBalanceProjector (consolidação)
+    Persistence/   MyBankDbContext, Configurations/ (mapeamento de cada entidade), Migrations/
   MyBank.Api/      Program.cs (só compõe as extensões), ErrorHandler (problem+json), AuthPolicies
     Contracts/     Requests e responses HTTP, um record por arquivo
     Endpoints/     AccountEndpoints (rotas de conta), DevTokenEndpoints (token local), HealthEndpoints
@@ -180,7 +181,7 @@ sequenceDiagram
 - **A ordem não importa:** créditos, débitos e quantidade são somas. A abertura vem do lançamento de **menor** sequência do dia e o fechamento do de **maior** sequência. O resultado é o mesmo em qualquer ordem de chegada, então não é preciso controlar sequência nem guardar checkpoint (marcador de "até onde já processei").
 - **Atraso visível:** a consulta do consolidado devolve `projection.pendingEntries` (lançamentos ainda não consolidados) e `upToDate` (em dia: sim/não), para o cliente saber se o dado está atrasado.
 
-**Onde está no código:** o evento nasce em [`LedgerService.RegisterEntryAsync`](../src/MyBank.Core/LedgerService.cs), na mesma transação do lançamento. O laço é o [`ProjectionWorker`](../src/MyBank.Worker/ProjectionWorker.cs) (lote com eventos: segue direto; fila vazia: espera 1 s; erro: espera 5 s). Cada lote é processado pelo [`DailyBalanceProjector.ProcessBatchAsync`](../src/MyBank.Core/DailyBalanceProjector.cs), e o cálculo do dia é feito por `LedgerRules.SummarizeDay`.
+**Onde está no código:** o evento nasce em [`LedgerService.RegisterEntryAsync`](../src/MyBank.Core/Ledger/LedgerService.cs), na mesma transação do lançamento. O laço é o [`ProjectionWorker`](../src/MyBank.Worker/ProjectionWorker.cs) (lote com eventos: segue direto; fila vazia: espera 1 s; erro: espera 5 s). Cada lote é processado pelo [`DailyBalanceProjector.ProcessBatchAsync`](../src/MyBank.Core/Ledger/DailyBalanceProjector.cs), e o cálculo do dia é feito por `LedgerRules.SummarizeDay`.
 
 ### 4.3 Consultas
 

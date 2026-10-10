@@ -4,12 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using MyBank.Core;
+using MyBank.Core.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace MyBank.Core.Migrations
+namespace MyBank.Core.Persistence.Migrations
 {
     [DbContext(typeof(MyBankDbContext))]
     [Migration("20261009222152_InitialSchema")]

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace MyBank.Core;
+namespace MyBank.Core.Persistence;
 
 /// <summary>Usada pelo dotnet-ef para gerar migrations sem iniciar a API.</summary>
 public sealed class MyBankDbContextFactory : IDesignTimeDbContextFactory<MyBankDbContext>

@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using MyBank.Core.Persistence;
 using MyBank.Domain;
 using MyBank.Domain.Entities;
 
-namespace MyBank.Core;
+namespace MyBank.Core.Ledger;
 
 /// <summary>Casos de uso da conta: abertura, lançamentos e consultas. As regras ficam em <see cref="LedgerRules"/>.</summary>
 public sealed class LedgerService(MyBankDbContext db)

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MyBank.Core.Ledger;
+using MyBank.Core.Persistence;
 
 namespace MyBank.Core;
 

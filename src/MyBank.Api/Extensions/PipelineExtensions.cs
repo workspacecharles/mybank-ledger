@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using MyBank.Core;
+using MyBank.Core.Persistence;
 
 namespace MyBank.Api.Extensions;
 

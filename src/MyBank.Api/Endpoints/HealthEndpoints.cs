@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
-using MyBank.Core;
+using MyBank.Core.Persistence;
 
 namespace MyBank.Api.Endpoints;
 

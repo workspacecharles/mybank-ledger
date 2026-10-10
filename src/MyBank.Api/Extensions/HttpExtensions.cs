@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Json;
-using MyBank.Core;
+using MyBank.Core.Persistence;
 
 namespace MyBank.Api.Extensions;
 

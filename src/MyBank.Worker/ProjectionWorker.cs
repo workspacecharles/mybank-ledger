@@ -1,4 +1,4 @@
-using MyBank.Core;
+using MyBank.Core.Ledger;
 
 namespace MyBank.Worker;
 
