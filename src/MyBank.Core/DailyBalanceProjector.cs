@@ -40,7 +40,7 @@ public sealed class DailyBalanceProjector(MyBankDbContext db)
 
         foreach (var day in days)
         {
-            await UpsertDayAsync(day.Key.AccountId, day.Key.Date, [.. day], ct);
+            await UpsertDayAsync(LedgerRules.SummarizeDay(day.Key.AccountId, day.Key.Date, [.. day]), ct);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -52,23 +52,17 @@ public sealed class DailyBalanceProjector(MyBankDbContext db)
     }
 
     /// <summary>
-    /// Soma os lançamentos ao dia. Abertura e fechamento vêm do lançamento de menor e
-    /// maior sequência, então o resultado não depende da ordem em que os eventos chegam.
+    /// Soma o resumo do lote ao dia já gravado. Abertura e fechamento ficam com o lançamento de
+    /// menor e maior sequência, então o resultado não depende da ordem em que os eventos chegam.
     /// </summary>
-    private async Task UpsertDayAsync(Guid accountId, DateOnly date, List<LedgerEntry> entries, CancellationToken ct)
+    private async Task UpsertDayAsync(DailyBalance day, CancellationToken ct)
     {
-        var first = entries.MinBy(e => e.Sequence)!;
-        var last = entries.MaxBy(e => e.Sequence)!;
-        var opening = first.Type == EntryType.Credit ? first.BalanceAfter - first.Amount : first.BalanceAfter + first.Amount;
-        var credits = entries.Where(e => e.Type == EntryType.Credit).Sum(e => e.Amount);
-        var debits = entries.Where(e => e.Type == EntryType.Debit).Sum(e => e.Amount);
-
         await db.Database.ExecuteSqlAsync($"""
             INSERT INTO mybank.daily_balances AS d
                 (account_id, date, opening_balance, total_credits, total_debits, closing_balance,
                  entry_count, first_sequence, last_sequence, updated_at)
-            VALUES ({accountId}, {date}, {opening}, {credits}, {debits}, {last.BalanceAfter},
-                    {entries.Count}, {first.Sequence}, {last.Sequence}, now())
+            VALUES ({day.AccountId}, {day.Date}, {day.OpeningBalance}, {day.TotalCredits}, {day.TotalDebits}, {day.ClosingBalance},
+                    {day.EntryCount}, {day.FirstSequence}, {day.LastSequence}, now())
             ON CONFLICT (account_id, date) DO UPDATE SET
                 total_credits = d.total_credits + EXCLUDED.total_credits,
                 total_debits = d.total_debits + EXCLUDED.total_debits,

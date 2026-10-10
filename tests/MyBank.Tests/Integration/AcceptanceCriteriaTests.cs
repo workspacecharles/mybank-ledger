@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using MyBank.Api;
 
-namespace MyBank.Tests;
+namespace MyBank.Tests.Integration;
 
 /// <summary>
 /// Um teste por critério de aceite da demanda (numeração igual à de docs/Arquitetura.md).

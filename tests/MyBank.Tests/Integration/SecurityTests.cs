@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using MyBank.Api;
 
-namespace MyBank.Tests;
+namespace MyBank.Tests.Integration;
 
 [Collection(SharedApi.Name)]
 public sealed class SecurityTests(ApiFixture api)

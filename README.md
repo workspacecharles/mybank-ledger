@@ -16,10 +16,10 @@ flowchart LR
 ```
 
 ```text
-src/MyBank.Core         Entidades, banco (EF Core + migrations), regras (LedgerService) e consolidação (DailyBalanceProjector)
+src/MyBank.Core         Entidades, banco (EF Core + migrations), regras (LedgerRules), casos de uso (LedgerService) e consolidação (DailyBalanceProjector)
 src/MyBank.Api          Endpoints, autenticação JWT, erros em problem+json, health checks
 src/MyBank.Worker       Processa a outbox em um laço contínuo
-tests/MyBank.Tests      Um teste por critério de aceite, com API e PostgreSQL reais
+tests/MyBank.Tests      Unit/: regras de negócio isoladas. Integration/: um teste por critério de aceite, com API e PostgreSQL reais
 tools/MyBank.LoadTests  Teste de carga a 50 req/s com verificação de perda e duplicação
 ```
 
@@ -101,13 +101,28 @@ dotnet build MyBank.slnx -c Release
 dotnet test MyBank.slnx -c Release
 ```
 
-O build trata warnings (avisos do compilador) como erro. Os testes sobem um PostgreSQL descartável via Testcontainers (biblioteca que cria o banco no Docker só durante o teste), então o **Docker precisa estar em execução**. O CI (integração contínua: o GitHub compila e testa a cada envio), definido em [ci.yml](.github/workflows/ci.yml), roda build e testes.
+O build trata warnings (avisos do compilador) como erro. O CI (integração contínua: o GitHub compila e testa a cada envio), definido em [ci.yml](.github/workflows/ci.yml), roda build e todos os testes.
 
-| Classe | Cobre |
-|---|---|
-| `AcceptanceCriteriaTests` | Critérios de aceite 1 a 9 da demanda, um teste cada (`C01`…`C09`): crédito, débito, validações, saldo insuficiente, 50 débitos simultâneos, idempotência (inclusive simultânea), conflito de chave, worker parado, saldo histórico |
-| `ProjectionTests` | 4 workers simultâneos sem duplicar, reconstrução do consolidado, health da projeção, validação do período |
-| `SecurityTests` | 401 (sem token), 403 (conta de outro titular), papel admin, validação da abertura de conta, campos proibidos no corpo, instante sem fuso, razão imutável no banco |
+O projeto de testes tem uma subpasta por tipo de teste:
+
+- **`Unit/`** (testes unitários): testam as regras de negócio de `LedgerRules` isoladas, sem banco e sem Docker. Rodam em menos de um segundo.
+- **`Integration/`** (testes de integração): sobem a API inteira sobre um PostgreSQL descartável via Testcontainers (biblioteca que cria o banco no Docker só durante o teste), então o **Docker precisa estar em execução**. Provam o que só o banco garante: travas, transações, índices únicos e imutabilidade do razão.
+
+Para rodar um tipo só, filtre pelo namespace (o nome da subpasta):
+
+```powershell
+dotnet test MyBank.slnx -c Release --filter "FullyQualifiedName~MyBank.Tests.Unit"
+dotnet test MyBank.slnx -c Release --filter "FullyQualifiedName~MyBank.Tests.Integration"
+```
+
+| Classe | Tipo | Cobre |
+|---|---|---|
+| `InputValidationTests` | Unit | Valor, escala, moeda, tipo, chave de idempotência, descrição, titular, saldo inicial e período da consolidação |
+| `BalanceRulesTests` | Unit | Crédito e débito exatos, saldo insuficiente, repetição com a mesma chave (mesmo conteúdo ou conflito), titularidade da conta |
+| `DailySummaryTests` | Unit | Cálculo do dia consolidado (abertura, totais, fechamento), independente da ordem dos lançamentos |
+| `AcceptanceCriteriaTests` | Integration | Critérios de aceite 1 a 9 da demanda, um teste cada (`C01`…`C09`): crédito, débito, validações, saldo insuficiente, 50 débitos simultâneos, idempotência (inclusive simultânea), conflito de chave, worker parado, saldo histórico |
+| `ProjectionTests` | Integration | 4 workers simultâneos sem duplicar, reconstrução do consolidado, health da projeção, validação do período |
+| `SecurityTests` | Integration | 401 (sem token), 403 (conta de outro titular), papel admin, validação da abertura de conta, campos proibidos no corpo, instante sem fuso, razão imutável no banco |
 
 ## Teste de carga
 

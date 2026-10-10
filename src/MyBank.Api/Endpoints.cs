@@ -66,7 +66,7 @@ internal static partial class Endpoints
     {
         DateTimeOffset? instant = at is null ? null : ParseInstant(at);
         var balance = await ledger.GetBalanceAsync(accountId, user.SubjectId(), instant, ct);
-        return Results.Ok(new BalanceResponse(accountId, balance, LedgerService.Currency, instant?.ToUniversalTime()));
+        return Results.Ok(new BalanceResponse(accountId, balance, LedgerRules.Currency, instant?.ToUniversalTime()));
     }
 
     private static async Task<IResult> GetDailyBalancesAsync(
@@ -89,7 +89,7 @@ internal static partial class Endpoints
 
         return Results.Ok(new DailyBalancesResponse(
             accountId,
-            LedgerService.Currency,
+            LedgerRules.Currency,
             from.Value,
             to.Value,
             new ProjectionStatus(result.PendingEntries, result.PendingEntries == 0),

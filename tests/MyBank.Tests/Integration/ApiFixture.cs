@@ -8,7 +8,7 @@ using MyBank.Api;
 using MyBank.Core;
 using Testcontainers.PostgreSql;
 
-namespace MyBank.Tests;
+namespace MyBank.Tests.Integration;
 
 [CollectionDefinition(Name)]
 public sealed class SharedApi : ICollectionFixture<ApiFixture>

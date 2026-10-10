@@ -43,11 +43,14 @@ flowchart LR
 
 ```text
 src/
-  MyBank.Core/     Entidades, DbContext + migrations, LedgerService (regras), DailyBalanceProjector (consolidação)
+  MyBank.Core/     Entidades, DbContext + migrations, LedgerRules (regras puras, sem banco),
+                   LedgerService (casos de uso), DailyBalanceProjector (consolidação)
   MyBank.Api/      Endpoints HTTP, JWT, conversão de erros em problem+json, health checks
   MyBank.Worker/   Laço que chama o DailyBalanceProjector
 tests/
-  MyBank.Tests/    API real + PostgreSQL real (Testcontainers): um teste por critério de aceite
+  MyBank.Tests/
+    Unit/          Regras de negócio isoladas (LedgerRules), sem banco nem Docker
+    Integration/   API real + PostgreSQL real (Testcontainers): um teste por critério de aceite
 tools/
   MyBank.LoadTests/  Gerador de carga a 50 req/s com verificação de perda e duplicação no banco
 ```
@@ -183,22 +186,22 @@ Uma primeira versão deste projeto tinha camadas Domain/Application/Infrastructu
 
 ## 9. Critérios de aceite e evidências
 
-Cada critério de aceite (condição que a demanda exige) tem um teste com o mesmo número em [`AcceptanceCriteriaTests`](../tests/MyBank.Tests/AcceptanceCriteriaTests.cs), executado contra PostgreSQL real.
+Cada critério de aceite (condição que a demanda exige) tem um teste de integração com o mesmo número em [`AcceptanceCriteriaTests`](../tests/MyBank.Tests/Integration/AcceptanceCriteriaTests.cs), executado contra PostgreSQL real. As regras dos critérios 1 a 4, 6 e 7 também têm testes unitários em [`tests/MyBank.Tests/Unit`](../tests/MyBank.Tests/Unit), que verificam cada regra isolada. Os critérios 5 e 8 dependem de transações e travas do banco, então só um teste de integração os demonstra.
 
 | # | Critério | Evidência |
 |---|---|---|
-| 1, 2 | Crédito e débito alteram o saldo exatamente pelo valor | `C01`, `C02` |
-| 3 | Valor zero, negativo, escala > 2, moeda não suportada, tipo inválido, conta inexistente e chave ausente são rejeitados sem gravar | `C03` (7 casos) |
-| 4 | Débito acima do saldo é rejeitado sem efeito | `C04` |
+| 1, 2 | Crédito e débito alteram o saldo exatamente pelo valor | `C01`, `C02`; unitários em `BalanceRulesTests` |
+| 3 | Valor zero, negativo, escala > 2, moeda não suportada, tipo inválido, conta inexistente e chave ausente são rejeitados sem gravar | `C03` (7 casos); unitários em `InputValidationTests` |
+| 4 | Débito acima do saldo é rejeitado sem efeito | `C04`; unitário em `BalanceRulesTests` |
 | 5 | Débitos concorrentes não negativam o saldo | `C05`: 50 débitos simultâneos sobre saldo para 20, exatamente 20 aceitos. Sem o `FOR UPDATE`, o teste falha |
 | 6 | Mesma chave e mesmo conteúdo: um lançamento | `C06`, inclusive 10 repetições simultâneas |
-| 7 | Mesma chave com outro conteúdo: conflito sem efeito | `C07` |
-| 8 | Worker parado não impede lançamentos; ao voltar, alcança o razão sem duplicar | `C08`, `ProjectionTests` (4 workers simultâneos) e carga com worker parado |
+| 7 | Mesma chave com outro conteúdo: conflito sem efeito | `C07`; unitários em `BalanceRulesTests` |
+| 8 | Worker parado não impede lançamentos; ao voltar, alcança o razão sem duplicar | `C08`, `ProjectionTests` (4 workers simultâneos), cálculo do dia em `DailySummaryTests` e carga com worker parado |
 | 9 | Saldo histórico antes, no instante e depois de cada lançamento | `C09` |
 | 10 | 50 req/s, p50/p95/p99 (tempos em que 50%, 95% e 99% das respostas ficaram), erros e zero perda | [Teste-de-Carga.md](./Teste-de-Carga.md) |
 | 11 | Build sem warnings (avisos do compilador) e testes em CI (integração contínua: o GitHub compila e testa a cada envio) | `TreatWarningsAsErrors` (avisos viram erros) + analisadores de código `latest-recommended`; [ci.yml](../.github/workflows/ci.yml) |
 
-Segurança (`401`, `403`, papel admin, campos proibidos, instante sem fuso, imutabilidade no banco) está em [`SecurityTests`](../tests/MyBank.Tests/SecurityTests.cs).
+Segurança (`401`, `403`, papel admin, campos proibidos, instante sem fuso, imutabilidade no banco) está em [`SecurityTests`](../tests/MyBank.Tests/Integration/SecurityTests.cs).
 
 ## 10. Evoluções futuras
 

@@ -14,7 +14,7 @@ public sealed record CreateEntryRequest(string? Type, decimal? Amount, string? C
 
 public sealed record AccountResponse(Guid Id, string OwnerId, string Currency, decimal InitialBalance, decimal Balance, DateTimeOffset CreatedAt)
 {
-    public static AccountResponse From(Account a) => new(a.Id, a.OwnerId, LedgerService.Currency, a.InitialBalance, a.Balance, a.CreatedAt);
+    public static AccountResponse From(Account a) => new(a.Id, a.OwnerId, LedgerRules.Currency, a.InitialBalance, a.Balance, a.CreatedAt);
 }
 
 public sealed record EntryResponse(
@@ -34,7 +34,7 @@ public sealed record EntryResponse(
         e.Sequence,
         e.Type == EntryType.Credit ? "credit" : "debit",
         e.Amount,
-        LedgerService.Currency,
+        LedgerRules.Currency,
         e.BalanceAfter,
         e.RecordedAt,
         e.Description);
