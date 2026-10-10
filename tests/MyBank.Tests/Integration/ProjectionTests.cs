@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
-using MyBank.Api;
+using MyBank.Api.Contracts;
+using MyBank.Domain.Enums;
 
 namespace MyBank.Tests.Integration;
 
@@ -36,8 +37,8 @@ public sealed class ProjectionTests(ApiFixture api)
             var days = await api.QueryDbAsync(db => db.DailyBalances.Where(d => d.AccountId == id).OrderBy(d => d.Date).ToListAsync());
 
             Assert.Equal(30, days.Sum(d => d.EntryCount));
-            Assert.Equal(ledger.Where(e => e.Type == Core.EntryType.Credit).Sum(e => e.Amount), days.Sum(d => d.TotalCredits));
-            Assert.Equal(ledger.Where(e => e.Type == Core.EntryType.Debit).Sum(e => e.Amount), days.Sum(d => d.TotalDebits));
+            Assert.Equal(ledger.Where(e => e.Type == EntryType.Credit).Sum(e => e.Amount), days.Sum(d => d.TotalCredits));
+            Assert.Equal(ledger.Where(e => e.Type == EntryType.Debit).Sum(e => e.Amount), days.Sum(d => d.TotalDebits));
             Assert.Equal(1000.00m, days[0].OpeningBalance);
             Assert.Equal(await client.GetBalanceAsync(id), days[^1].ClosingBalance);
             client.Dispose();
@@ -54,7 +55,7 @@ public sealed class ProjectionTests(ApiFixture api)
         await api.RunWorkerUntilIdleAsync();
         var before = await api.QueryDbAsync(db => db.DailyBalances.AsNoTracking().SingleAsync(d => d.AccountId == account));
 
-        // Procedimento documentado em Arquitetura.md (Operação): o razão nunca é alterado.
+        // Procedimento documentado em Architecture.md (Operação): o razão nunca é alterado.
         await api.QueryDbAsync(db => db.Database.ExecuteSqlRawAsync("""
             BEGIN;
             TRUNCATE mybank.daily_balances;

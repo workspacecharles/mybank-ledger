@@ -4,17 +4,11 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using MyBank.Api;
+using MyBank.Api.Contracts;
 using MyBank.Core;
 using Testcontainers.PostgreSql;
 
 namespace MyBank.Tests.Integration;
-
-[CollectionDefinition(Name)]
-public sealed class SharedApi : ICollectionFixture<ApiFixture>
-{
-    public const string Name = "api";
-}
 
 /// <summary>
 /// API completa (Development) sobre um PostgreSQL real e descartável. Locks, transações e
@@ -82,41 +76,4 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
 
     public Task<int> CountEntriesAsync(Guid accountId) =>
         QueryDbAsync(db => db.LedgerEntries.CountAsync(e => e.AccountId == accountId));
-}
-
-internal static class HttpClientExtensions
-{
-    public static Task<HttpResponseMessage> PostEntryAsync(
-        this HttpClient client,
-        Guid accountId,
-        string? key,
-        object body)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/accounts/{accountId}/entries")
-        {
-            Content = JsonContent.Create(body),
-        };
-        if (key is not null)
-        {
-            request.Headers.Add("Idempotency-Key", key);
-        }
-
-        return client.SendAsync(request);
-    }
-
-    public static Task<HttpResponseMessage> PostEntryAsync(this HttpClient client, Guid accountId, string key, string type, decimal amount) =>
-        client.PostEntryAsync(accountId, key, new CreateEntryRequest(type, amount, "BRL", null));
-
-    public static async Task<decimal> GetBalanceAsync(this HttpClient client, Guid accountId, string? at = null)
-    {
-        var url = $"/api/v1/accounts/{accountId}/balance" + (at is null ? string.Empty : $"?at={Uri.EscapeDataString(at)}");
-        var response = await client.GetFromJsonAsync<BalanceResponse>(url);
-        return response!.Balance;
-    }
-
-    public static async Task<string?> ErrorCodeAsync(this HttpResponseMessage response)
-    {
-        var problem = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-        return problem?.GetValueOrDefault("code")?.ToString();
-    }
 }

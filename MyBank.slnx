@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/MyBank.Api/MyBank.Api.csproj" />
     <Project Path="src/MyBank.Core/MyBank.Core.csproj" />
+    <Project Path="src/MyBank.Domain/MyBank.Domain.csproj" />
     <Project Path="src/MyBank.Worker/MyBank.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">

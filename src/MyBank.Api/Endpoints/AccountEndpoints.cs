@@ -2,17 +2,20 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
+using MyBank.Api.Contracts;
+using MyBank.Api.Extensions;
 using MyBank.Core;
+using MyBank.Domain;
 
-namespace MyBank.Api;
+namespace MyBank.Api.Endpoints;
 
-internal static partial class Endpoints
+internal static partial class AccountEndpoints
 {
     public static void MapAccountEndpoints(this WebApplication app)
     {
-        var accounts = app.MapGroup("/api/v1/accounts").RequireAuthorization(Auth.AccountHolderPolicy);
+        var accounts = app.MapGroup("/api/v1/accounts").RequireAuthorization(AuthPolicies.AccountHolder);
 
-        accounts.MapPost("/", CreateAccountAsync).RequireAuthorization(Auth.AdminPolicy);
+        accounts.MapPost("/", CreateAccountAsync).RequireAuthorization(AuthPolicies.Admin);
         accounts.MapPost("/{accountId}/entries", RegisterEntryAsync);
         accounts.MapGet("/{accountId}/entries/{entryId}", GetEntryAsync);
         accounts.MapGet("/{accountId}/balance", GetBalanceAsync);

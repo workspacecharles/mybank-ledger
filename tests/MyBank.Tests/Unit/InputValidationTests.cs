@@ -1,5 +1,6 @@
 using System.Globalization;
-using MyBank.Core;
+using MyBank.Domain;
+using MyBank.Domain.Enums;
 
 namespace MyBank.Tests.Unit;
 

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Domínio puro: sem pacotes nem referências a outros projetos. O compilador garante
+       que entidades e regras não dependem de banco, HTTP ou framework. -->
+
+</Project>

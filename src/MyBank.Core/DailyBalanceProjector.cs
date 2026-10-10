@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using MyBank.Domain;
+using MyBank.Domain.Entities;
 
 namespace MyBank.Core;
 

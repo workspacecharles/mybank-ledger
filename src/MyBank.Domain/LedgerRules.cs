@@ -1,4 +1,7 @@
-namespace MyBank.Core;
+using MyBank.Domain.Entities;
+using MyBank.Domain.Enums;
+
+namespace MyBank.Domain;
 
 /// <summary>
 /// Regras de negócio puras, sem banco de dados: validações de entrada, regra de saldo,

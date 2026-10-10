@@ -1,4 +1,7 @@
-using MyBank.Core;
+using MyBank.Domain;
+using MyBank.Domain.Entities;
+using MyBank.Domain.Enums;
+
 
 namespace MyBank.Tests.Unit;
 

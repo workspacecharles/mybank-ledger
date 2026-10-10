@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using MyBank.Core;
+using MyBank.Domain;
+using MyBank.Domain.Enums;
 using Npgsql;
 
 namespace MyBank.Api;

@@ -1,13 +1,6 @@
-namespace MyBank.Core;
+using MyBank.Domain.Enums;
 
-public enum ErrorType
-{
-    Validation,
-    NotFound,
-    Forbidden,
-    Conflict,
-    BusinessRule,
-}
+namespace MyBank.Domain;
 
 /// <summary>Requisição rejeitada por regra de negócio; a API a converte em problem+json com <see cref="Code"/>.</summary>
 public sealed class LedgerException(ErrorType type, string code, string message) : Exception(message)

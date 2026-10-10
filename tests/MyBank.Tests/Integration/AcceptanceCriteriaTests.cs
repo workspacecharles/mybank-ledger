@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
-using MyBank.Api;
+using MyBank.Api.Contracts;
 
 namespace MyBank.Tests.Integration;
 
 /// <summary>
-/// Um teste por critério de aceite da demanda (numeração igual à de docs/Arquitetura.md).
+/// Um teste por critério de aceite da demanda (numeração igual à de docs/Architecture.md).
 /// O critério 10 (carga) é coberto por tools/MyBank.LoadTests e o 11 (build sem warnings + CI) pelo pipeline.
 /// </summary>
 [Collection(SharedApi.Name)]

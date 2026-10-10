@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
-using MyBank.Api;
+using MyBank.Api.Contracts;
 
 namespace MyBank.Tests.Integration;
 

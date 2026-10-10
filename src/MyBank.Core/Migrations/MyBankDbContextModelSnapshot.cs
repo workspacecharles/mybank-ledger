@@ -23,7 +23,7 @@ namespace MyBank.Core.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("MyBank.Core.Account", b =>
+            modelBuilder.Entity("MyBank.Domain.Entities.Account", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -66,7 +66,7 @@ namespace MyBank.Core.Migrations
                         });
                 });
 
-            modelBuilder.Entity("MyBank.Core.DailyBalance", b =>
+            modelBuilder.Entity("MyBank.Domain.Entities.DailyBalance", b =>
                 {
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid")
@@ -117,7 +117,7 @@ namespace MyBank.Core.Migrations
                     b.ToTable("daily_balances", "mybank");
                 });
 
-            modelBuilder.Entity("MyBank.Core.LedgerEntry", b =>
+            modelBuilder.Entity("MyBank.Domain.Entities.LedgerEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -181,7 +181,7 @@ namespace MyBank.Core.Migrations
                         });
                 });
 
-            modelBuilder.Entity("MyBank.Core.OutboxMessage", b =>
+            modelBuilder.Entity("MyBank.Domain.Entities.OutboxMessage", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -222,20 +222,20 @@ namespace MyBank.Core.Migrations
                     b.ToTable("outbox_messages", "mybank");
                 });
 
-            modelBuilder.Entity("MyBank.Core.LedgerEntry", b =>
+            modelBuilder.Entity("MyBank.Domain.Entities.LedgerEntry", b =>
                 {
-                    b.HasOne("MyBank.Core.Account", null)
+                    b.HasOne("MyBank.Domain.Entities.Account", null)
                         .WithMany()
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("MyBank.Core.OutboxMessage", b =>
+            modelBuilder.Entity("MyBank.Domain.Entities.OutboxMessage", b =>
                 {
-                    b.HasOne("MyBank.Core.LedgerEntry", null)
+                    b.HasOne("MyBank.Domain.Entities.LedgerEntry", null)
                         .WithOne()
-                        .HasForeignKey("MyBank.Core.OutboxMessage", "EntryId")
+                        .HasForeignKey("MyBank.Domain.Entities.OutboxMessage", "EntryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
