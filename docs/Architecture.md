@@ -107,6 +107,8 @@ flowchart LR
     Tests[MyBank.Tests] --> Api
 ```
 
+*Diagrama de Dependências*
+
 As dependências só apontam para dentro: `Domain` não conhece ninguém, `Core` conhece o `Domain` e o banco, e `Api` e `Worker` são as duas portas de entrada (HTTP e laço da outbox) que usam o mesmo `Core`. Como `MyBank.Domain` não tem nenhuma referência, o compilador impede que uma regra de negócio passe a depender de banco ou de HTTP. Por isso os testes unitários das regras rodam sem banco nem Docker.
 
 **Convenções de código:**
@@ -154,6 +156,8 @@ sequenceDiagram
     end
 ```
 
+*Diagrama de Sequência*
+
 (`BEGIN` abre a transação, `COMMIT` confirma, `rollback` desfaz tudo; `sub` é o campo do token com a identidade do usuário.)
 
 - **Atomicidade** (tudo ou nada): qualquer falha antes do commit desfaz tudo. Banco indisponível retorna `503` com o header `Retry-After` (tente de novo depois de N segundos), e o cliente repete com a mesma chave.
@@ -176,6 +180,8 @@ sequenceDiagram
     end
 ```
 
+*Diagrama de Sequência*
+
 - **Sem perda, sem duplicidade:** somar no consolidado e marcar o evento como processado acontecem na mesma transação. Se o worker cair no meio, nada é confirmado e o lote (grupo de até 500 eventos) volta para a fila.
 - **Vários workers:** `SKIP LOCKED` ("pule as linhas que outro já reservou") faz cada worker pegar eventos diferentes. Os upserts (comando "se não existe, cria; se existe, atualiza") são feitos em ordem fixa (conta, dia) para evitar deadlock (dois processos esperando um pelo outro para sempre).
 - **A ordem não importa:** créditos, débitos e quantidade são somas. A abertura vem do lançamento de **menor** sequência do dia e o fechamento do de **maior** sequência. O resultado é o mesmo em qualquer ordem de chegada, então não é preciso controlar sequência nem guardar checkpoint (marcador de "até onde já processei").
@@ -195,13 +201,23 @@ Prefixo `/api/v1`. Erros em `application/problem+json` com um `code` (código) e
 
 | Operação | Contrato | Respostas |
 |---|---|---|
-| Registrar lançamento | `POST /accounts/{id}/entries`, header `Idempotency-Key`, corpo `{type, amount, currency, description?}` (tipo, valor, moeda, descrição opcional) | `201`; repetição: `201` com o mesmo corpo + `Idempotent-Replayed: true`; `400`, `403`, `404`, `409 idempotency_key_reused`, `422 insufficient_funds`, `503` |
-| Consultar lançamento | `GET /accounts/{id}/entries/{entryId}` | `200`, `403`, `404` |
-| Saldo atual ou histórico | `GET /accounts/{id}/balance[?at=2026-10-09T12:00:00Z]` | `200 {balance, at}`, `400 invalid_instant` |
-| Consolidado | `GET /accounts/{id}/daily-balances?from=YYYY-MM-DD&to=YYYY-MM-DD` | `200 {projection: {pendingEntries, upToDate}, days}`, `400 invalid_date_range` |
-| Abrir conta | `POST /accounts {ownerId, initialBalance}` (papel `accounts-admin`) | `201`, `400`, `403` |
-| Token local | `POST /dev/token {subject, roles?}` (somente Development) | `200 {accessToken}` |
+| Registrar lançamento | `POST /accounts/{id}/entries`, header `Idempotency-Key`, corpo `{type, amount, currency, description?}` (tipo, valor, moeda, descrição opcional) | `201` lançamento; repetição: `201` com o mesmo corpo + `Idempotent-Replayed: true`; `400`, `403`, `404`, `409 idempotency_key_reused`, `422 insufficient_funds`, `503` |
+| Consultar lançamento | `GET /accounts/{id}/entries/{entryId}` | `200` lançamento, `403`, `404` |
+| Saldo atual ou histórico | `GET /accounts/{id}/balance[?at=2026-10-09T12:00:00Z]` | `200` saldo, `400 invalid_instant` |
+| Consolidado | `GET /accounts/{id}/daily-balances?from=YYYY-MM-DD&to=YYYY-MM-DD` | `200` consolidado, `400 invalid_date_range` |
+| Abrir conta | `POST /accounts {ownerId, initialBalance}` (papel `accounts-admin`) | `201` conta, `400`, `403` |
+| Token local | `POST /dev/token {subject, roles?}` (somente Development) | `200` token |
 | Saúde | `GET /health/live`, `/health/ready`, `/health/projection` | ver seção 7 |
+
+Corpos de resposta (JSON em camelCase; valores com 2 casas; instantes em UTC):
+
+| Corpo | Campos |
+|---|---|
+| Lançamento | `id`, `accountId`, `sequence`, `type` (`credit`/`debit`), `amount`, `currency`, `balanceAfter`, `recordedAt`, `description` |
+| Saldo | `accountId`, `balance`, `currency`, `at` (vazio no saldo atual) |
+| Consolidado | `accountId`, `currency`, `from`, `to`, `projection {pendingEntries, upToDate}`, `days[] {date, openingBalance, totalCredits, totalDebits, closingBalance, entryCount}` |
+| Conta | `id`, `ownerId`, `currency`, `initialBalance`, `balance`, `createdAt` |
+| Token | `accessToken`, `expiresAt` |
 
 Códigos HTTP usados: 200 ok; 201 criado; 400 pedido inválido; 401 sem autenticação; 403 sem permissão; 404 não encontrado; 409 conflito; 422 recusado por regra de negócio; 503 serviço indisponível.
 
@@ -251,17 +267,10 @@ Uma primeira versão deste projeto tinha camadas Domain/Application/Infrastructu
 
 ### Camadas e repositório
 
-A reescrita manteve a separação que tem valor e removeu a que só repassava chamadas.
+A reescrita manteve a separação que tem valor e removeu a que só repassava chamadas. O raciocínio completo, com alternativas e quando reavaliar, está no [ADR-0008](./adr/0008-dominio-isolado-sem-repositorio.md).
 
-**Mantido: domínio separado da infraestrutura.** Entidades, regras (`LedgerRules`) e erros de negócio (`LedgerException`) ficam em `MyBank.Domain`, um projeto sem nenhum pacote nem referência. A regra de dependência (o domínio não conhece banco, HTTP nem framework) é garantida pelo compilador, não por convenção. As regras são funções puras (recebem valores e devolvem um resultado ou um erro, sem efeitos colaterais) e são testadas sem banco em `tests/MyBank.Tests/Unit`.
-
-**Removido: interfaces de repositório e de unit of work.** O `LedgerService` usa o `DbContext` diretamente, por três motivos:
-
-- O `DbContext` do EF Core já é a implementação desses dois padrões: os `DbSet` são os repositórios, e o `SaveChanges` é a unidade de trabalho. A [documentação da Microsoft](https://learn.microsoft.com/dotnet/api/microsoft.entityframeworkcore.dbcontext) o descreve como "uma combinação dos padrões Unit Of Work e Repository". Uma interface por cima seria uma segunda abstração sobre a mesma coisa.
-- O que garante a consistência é específico do PostgreSQL: `SELECT ... FOR UPDATE` na conta, `clock_timestamp()` para o instante do lançamento e `INSERT ... ON CONFLICT` na consolidação. Um repositório genérico esconderia essas garantias atrás de um nome. Mantidas no `LedgerService`, ficam visíveis no único lugar em que a transação é montada.
-- Um repositório falso (fake, implementação em memória usada em testes) não tem trava nem transação de verdade. Ele testaria justamente o que não importa. Por isso as regras são testadas puras, e a persistência é testada contra um PostgreSQL real.
-
-**Quando reavaliar:** se surgir um segundo meio de armazenamento, a necessidade de trocar de banco, ou casos de uso com lógica de orquestração que valha testar sem banco. Nesse caso, o primeiro passo seria uma interface específica para a operação de lançamento (travar conta, buscar por chave de idempotência e gravar), não um repositório genérico.
+- **Mantido: domínio separado da infraestrutura.** `MyBank.Domain` não tem nenhum pacote nem referência, então o compilador impede que uma regra dependa de banco, HTTP ou framework. As regras são funções puras, testadas sem banco em `tests/MyBank.Tests/Unit`.
+- **Removido: interfaces de repositório e de unit of work.** O `DbContext` do EF Core já é os dois padrões (os `DbSet` são os repositórios; o `SaveChanges`, a unidade de trabalho). Uma interface por cima esconderia o que garante a consistência (`FOR UPDATE`, `clock_timestamp()`, `ON CONFLICT`), e um repositório falso em memória não teria trava nem transação para testar.
 
 ### Worker como serviço independente
 
