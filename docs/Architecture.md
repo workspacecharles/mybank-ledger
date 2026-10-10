@@ -85,7 +85,7 @@ src/
   MyBank.Api/      Program.cs (só compõe as extensões), ErrorHandler (problem+json), AuthPolicies
     Contracts/     Requests e responses HTTP, um record por arquivo
     Endpoints/     AccountEndpoints (rotas de conta), DevTokenEndpoints (token local), HealthEndpoints
-    Extensions/    AddMyBankAuth (JWT), AddMyBankHttp (erros, limites), AddMyBankOpenApi (contrato e interfaces), UseMyBankPipeline (middlewares)
+    Extensions/    AddMyBankAuth (JWT), AddMyBankHttp (erros, limites), AddMyBankOpenApi/MapMyBankApiDocs (contrato e interfaces), UseMyBankPipeline (middlewares)
   MyBank.Worker/   Laço que chama o DailyBalanceProjector
 tests/
   MyBank.Tests/

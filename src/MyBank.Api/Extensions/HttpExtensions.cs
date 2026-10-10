@@ -6,12 +6,11 @@ namespace MyBank.Api.Extensions;
 
 internal static class HttpExtensions
 {
-    /// <summary>Erros em problem+json, OpenAPI, health checks e limites de entrada das requisições.</summary>
+    /// <summary>Erros em problem+json, health checks e limites de entrada das requisições.</summary>
     public static void AddMyBankHttp(this WebApplicationBuilder builder)
     {
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ErrorHandler>();
-        builder.Services.AddMyBankOpenApi();
         builder.Services.AddHealthChecks().AddDbContextCheck<MyBankDbContext>();
 
         // Corpos pequenos e sem campos desconhecidos (ex.: o cliente não informa recordedAt nem balanceAfter).

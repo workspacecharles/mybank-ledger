@@ -9,9 +9,9 @@ internal static class OpenApiExtensions
     private const string BearerScheme = "Bearer";
 
     /// <summary>Contrato OpenAPI com o esquema Bearer, para as interfaces pedirem o token nas rotas protegidas.</summary>
-    public static void AddMyBankOpenApi(this IServiceCollection services)
+    public static void AddMyBankOpenApi(this WebApplicationBuilder builder)
     {
-        services.AddOpenApi(options =>
+        builder.Services.AddOpenApi(options =>
         {
             options.AddDocumentTransformer((document, _, _) =>
             {
@@ -45,9 +45,14 @@ internal static class OpenApiExtensions
         });
     }
 
-    /// <summary>Publica o contrato e duas interfaces para explorá-lo: Scalar (/scalar) e Swagger UI (/swagger).</summary>
+    /// <summary>Publica o contrato e duas interfaces para explorá-lo: Scalar (/scalar) e Swagger UI (/swagger). Só em Development.</summary>
     public static void MapMyBankApiDocs(this WebApplication app)
     {
+        if (!app.Environment.IsDevelopment())
+        {
+            return;
+        }
+
         app.MapOpenApi();
         app.MapScalarApiReference(scalar => scalar.WithTitle("MyBank API").AddPreferredSecuritySchemes(BearerScheme));
         app.UseSwaggerUI(swagger =>
