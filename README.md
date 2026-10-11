@@ -71,16 +71,88 @@ As duas mostram as mesmas rotas e executam requisições. Use a que preferir.
 
 ### 3. Fluxo básico
 
-As rotas de conta (com cadeado) exigem um token JWT (crachá digital assinado que identifica o usuário). Localmente, quem emite o token é a própria API, em `POST /dev/token`.
+As rotas de conta (com cadeado) exigem um token JWT (crachá digital assinado que identifica o usuário). Localmente, quem emite o token é a própria API, em `POST /dev/token`. Cada token vale por 2 horas.
 
-1. **Token de administrador:** `POST /dev/token` com `{"subject":"admin","roles":["accounts-admin"]}`. Copie o `accessToken` e informe-o em **Authentication** (Scalar) ou **Authorize** (Swagger UI).
-2. **Abrir conta:** `POST /api/v1/accounts` com `{"ownerId":"alice","initialBalance":100.00}`. Anote o `id` da conta.
-3. **Token da titular:** `POST /dev/token` com `{"subject":"alice"}` e troque o token na interface. Só o titular (o `subject` do token) movimenta e consulta a conta.
-4. **Lançar:** `POST /api/v1/accounts/{id}/entries` com o header `Idempotency-Key: pedido-001` e `{"type":"credit","amount":50.25,"currency":"BRL"}`. Para débito, use `"type":"debit"`. Repetir com a mesma chave devolve o mesmo lançamento, sem duplicar.
-5. **Consultar:**
-   - saldo atual: `GET /api/v1/accounts/{id}/balance`;
-   - saldo em um instante: o mesmo endereço com `?at=2026-10-09T12:00:00Z` (data e hora com fuso);
-   - consolidação diária: `GET /api/v1/accounts/{id}/daily-balances?from=2026-10-01&to=2026-10-31`. Com o worker rodando, fica em dia em instantes; `projection.upToDate` diz se está.
+**Há dois perfis, e cada um tem o seu token.** Usar o token errado é a causa mais comum de erro:
+
+| Token | Como gerar | O que pode fazer |
+|---|---|---|
+| Administrador | `{"subject":"admin","roles":["accounts-admin"]}` | **Só abrir contas** |
+| Titular | `{"subject":"alice"}` (o mesmo valor do `ownerId` da conta) | Lançar e consultar **a própria conta** |
+
+O administrador não lança nem consulta contas de outras pessoas. Com o token dele, essas rotas devolvem `403`.
+
+#### Passo a passo
+
+1. **Gerar o token de administrador.** `POST /dev/token` com o corpo:
+
+   ```json
+   {"subject":"admin","roles":["accounts-admin"]}
+   ```
+
+   Copie o valor de `accessToken` (sem as aspas) e cole em **Authorize** (Swagger UI) ou em **Authentication** (Scalar). Cole só o token, sem a palavra `Bearer`.
+
+2. **Abrir a conta.** `POST /api/v1/accounts` com:
+
+   ```json
+   {"ownerId":"alice","initialBalance":100.00}
+   ```
+
+   Resposta `201`. **Anote o `id`:** ele é o `accountId` de todas as rotas seguintes.
+
+3. **Trocar para o token da titular.** `POST /dev/token` com `{"subject":"alice"}`. Na interface, **substitua o token do admin pelo da alice**. No Swagger UI, clique em **Authorize**, depois em **Logout**, cole o novo token e clique em **Authorize**. Daqui em diante, use sempre o token da alice.
+
+4. **Lançar um crédito.** `POST /api/v1/accounts/{accountId}/entries` com o header `Idempotency-Key: pedido-001` e o corpo:
+
+   ```json
+   {"type":"credit","amount":50.25,"currency":"BRL"}
+   ```
+
+   Resposta `201` com o lançamento criado. Campos principais:
+   - `id`: identificador do lançamento, que é o `entryId` usado no passo 6;
+   - `sequence`: posição do lançamento no razão da conta;
+   - `balanceAfter`: saldo logo após o lançamento (`150.25`);
+   - `recordedAt`: data e hora em que o servidor registrou o lançamento.
+
+   **A `Idempotency-Key` é o "número do pedido", escolhido por você.** Cada chave corresponde a **um único lançamento** da conta:
+
+   | Você envia | Resultado |
+   |---|---|
+   | Chave nova | Cria um lançamento |
+   | Mesma chave e mesmo corpo | Devolve o lançamento original, sem duplicar, com o header `Idempotent-Replayed: true`. Serve para repetir com segurança depois de uma falha de rede |
+   | Mesma chave e corpo diferente | `409 idempotency_key_reused`: a chave já pertence a outro pedido |
+
+5. **Lançar um débito, com uma chave nova.** Mesmo endereço, header `Idempotency-Key: pedido-002` e:
+
+   ```json
+   {"type":"debit","amount":30.00,"currency":"BRL"}
+   ```
+
+   Resposta `201` com `balanceAfter` igual a `120.25`. A conta nunca fica negativa: um débito maior que o saldo devolve `422 insufficient_funds`.
+
+6. **Consultar.**
+   - **Um lançamento:** `GET /api/v1/accounts/{accountId}/entries/{entryId}`. O `entryId` é o `id` devolvido no passo 4 ou 5 e também aparece no header `Location` da resposta.
+   - **Saldo atual:** `GET /api/v1/accounts/{accountId}/balance` devolve `120.25`.
+   - **Saldo em um instante passado:** o mesmo endereço com `?at=` e uma data e hora **com fuso** (`Z` para UTC, o horário universal, ou `-03:00` para Brasília). Com o `recordedAt` do crédito, o resultado é `150.25`, o saldo antes do débito. Com um instante anterior ao crédito, é `100.00`.
+   - **Consolidação diária:** `GET /api/v1/accounts/{accountId}/daily-balances?from=AAAA-MM-DD&to=AAAA-MM-DD`, com um período de até 366 dias que **inclua a data de hoje em UTC**. Cada dia mostra saldo de abertura, total de créditos, total de débitos, saldo de fechamento e quantidade de lançamentos. O campo `projection.upToDate` indica se o worker já processou tudo. Com o worker parado, ele fica `false`, e `pendingEntries` mostra quantos lançamentos faltam consolidar.
+
+**Não há rota de extrato** (lista com todos os lançamentos da conta). Ela fica fora do escopo da demanda e está registrada como evolução futura em [Architecture §11](docs/Architecture.md#11-evoluções-futuras). Para ver um lançamento específico, use o `entryId`. Para ver o efeito no saldo, use `balance` e `daily-balances`.
+
+#### Se algo der errado
+
+| Resposta | Causa provável | O que fazer |
+|---|---|---|
+| `401` | Sem token, token colado errado ou expirado (vale 2 horas) | Gere outro em `POST /dev/token` e cole só o valor de `accessToken`, sem `Bearer` |
+| `403 forbidden` ("A conta não pertence ao usuário autenticado") | Token do admin, ou de outro titular, numa rota de lançamento ou consulta | Use o token do titular da conta (passo 3) |
+| `403` em `POST /api/v1/accounts` | Token sem o papel `accounts-admin` | Use o token de administrador (passo 1) |
+| `404 account_not_found` ou `entry_not_found` | `accountId` ou `entryId` errado | Confira os `id` anotados nos passos 2, 4 e 5 |
+| `409 idempotency_key_reused` | Chave já usada com outro conteúdo, por exemplo um débito enviado com a chave do crédito | Use uma chave nova, como `pedido-003` |
+| `422 insufficient_funds` | Débito maior que o saldo | Consulte o saldo e debite no máximo esse valor |
+| `400 invalid_idempotency_key` | Header `Idempotency-Key` ausente ou inválido | Informe de 1 a 128 caracteres: letras, dígitos, `-`, `_`, `:` ou `.` |
+| `400 invalid_amount`, `invalid_scale` ou `unsupported_currency` | Valor zero ou negativo, mais de 2 casas decimais ou moeda diferente de `BRL` | Corrija o corpo |
+| `400 invalid_instant` | `at` sem fuso, como em `2026-10-09T12:00:00` | Acrescente o fuso: `2026-10-09T12:00:00Z` |
+| `400 invalid_date_range` | `from` ou `to` ausente, fora do formato `AAAA-MM-DD`, `from` depois de `to` ou período maior que 366 dias | Ajuste o período |
+| Consolidação vazia ou `projection.upToDate: false` | Worker parado ou período que não inclui o dia dos lançamentos | Suba o worker (seção 1) e confira o período. Os lançamentos continuam aceitos sem o worker, e a consolidação se atualiza quando ele volta |
 
 **Outras formas de testar:** o arquivo [MyBank.Api.http](src/MyBank.Api/MyBank.Api.http) tem esse fluxo pronto para o VS Code (extensão REST Client) ou o Visual Studio. Há também um exemplo com `curl` abaixo.
 
@@ -100,6 +172,12 @@ ACC=$(curl -s -X POST $API/api/v1/accounts -H "Authorization: Bearer $ADMIN" -H 
 
 # Crédito. Repetir o comando devolve o mesmo lançamento com "Idempotent-Replayed: true".
 curl -i -X POST $API/api/v1/accounts/$ACC/entries -H "Authorization: Bearer $ALICE"   -H 'Idempotency-Key: pedido-001' -H 'Content-Type: application/json'   -d '{"type":"credit","amount":50.25,"currency":"BRL","description":"pagamento recebido"}'
+
+# Débito: cada lançamento novo precisa de uma chave nova. Guarda o id (entryId) do lançamento.
+ENTRY=$(curl -s -X POST $API/api/v1/accounts/$ACC/entries -H "Authorization: Bearer $ALICE"   -H 'Idempotency-Key: pedido-002' -H 'Content-Type: application/json'   -d '{"type":"debit","amount":30.00,"currency":"BRL"}' | jq -r .id)
+
+# Lançamento pelo entryId
+curl -s $API/api/v1/accounts/$ACC/entries/$ENTRY -H "Authorization: Bearer $ALICE"
 
 # Saldo atual, saldo em um instante e consolidação diária
 curl -s $API/api/v1/accounts/$ACC/balance -H "Authorization: Bearer $ALICE"
@@ -124,7 +202,7 @@ As interfaces (`/scalar`, `/swagger`), o contrato OpenAPI e o `POST /dev/token` 
 | Endpoint | Descrição |
 |---|---|
 | `POST /api/v1/accounts/{id}/entries` | Crédito/débito; `Idempotency-Key` obrigatório |
-| `GET /api/v1/accounts/{id}/entries/{entryId}` | Lançamento |
+| `GET /api/v1/accounts/{id}/entries/{entryId}` | Um lançamento; `entryId` é o `id` devolvido ao lançar |
 | `GET /api/v1/accounts/{id}/balance[?at=ISO-8601 com fuso]` | Saldo atual ou histórico (ISO-8601 é o formato padrão de data e hora, ex.: `2026-10-09T12:00:00Z`) |
 | `GET /api/v1/accounts/{id}/daily-balances?from=&to=` | Consolidação diária (datas em UTC, o horário universal) e atraso da projeção |
 | `POST /api/v1/accounts` | Abertura de conta (papel `accounts-admin`) |
