@@ -54,7 +54,12 @@ internal static class OpenApiExtensions
         }
 
         app.MapOpenApi();
-        app.MapScalarApiReference(scalar => scalar.WithTitle("MyBank API").AddPreferredSecuritySchemes(BearerScheme));
+        
+        app.MapScalarApiReference(scalar => 
+            scalar.WithTitle("MyBank API")
+            .AddPreferredSecuritySchemes(BearerScheme)
+        );
+
         app.UseSwaggerUI(swagger =>
         {
             swagger.SwaggerEndpoint("/openapi/v1.json", "MyBank API v1");
